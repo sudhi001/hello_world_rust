@@ -1,0 +1,20 @@
+[package]
+name = "hello_world"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+actix-web = "4.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+parking_lot = "0.12"
+uuid = { version = "1.3", features = ["v4", "serde"] }
+log = "0.4"
+env_logger = "0.10"
+tokio-postgres = { version = "0.7", features = ["with-uuid-1"] }
+deadpool-postgres = "0.10"
+tokio = { version = "1", features = ["full"] }
+dotenv = "0.15"
+postgres-types = { version = "0.2", features = ["derive"] }
+postgres-native-tls = "0.5"
+native-tls = "0.2"
