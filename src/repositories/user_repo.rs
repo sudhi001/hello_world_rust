@@ -1,5 +1,4 @@
 use deadpool_postgres::Pool;
-use tokio_postgres::Error as PgError;
 use uuid::Uuid;
 use std::error::Error as StdError;
 

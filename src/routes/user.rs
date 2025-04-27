@@ -1,7 +1,6 @@
 use actix_web::{web, HttpResponse, Responder, get, post, put, delete};
 use uuid::Uuid;
 use log::error;
-use std::error::Error as StdError;
 
 use crate::models::user::{CreateUserRequest, UpdateUserRequest};
 use crate::repositories::user_repo::UserRepository;
