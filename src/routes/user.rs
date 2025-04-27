@@ -3,7 +3,7 @@ use uuid::Uuid;
 use log::error;
 
 use crate::models::user::{CreateUserRequest, UpdateUserRequest};
-use crate::repositories::user_repo::UserRepository;
+use crate::repositories::user_repo::CachedUserRepository;
 
 // GET /health - Health check endpoint
 #[get("/health")]
@@ -13,7 +13,7 @@ pub async fn health_check() -> impl Responder {
 
 // GET /users - List all users
 #[get("/users")]
-pub async fn get_users(repo: web::Data<UserRepository>) -> impl Responder {
+pub async fn get_users(repo: web::Data<CachedUserRepository>) -> impl Responder {
     match repo.get_all().await {
         Ok(users) => HttpResponse::Ok().json(users),
         Err(e) => {
@@ -27,7 +27,7 @@ pub async fn get_users(repo: web::Data<UserRepository>) -> impl Responder {
 
 // GET /users/{id} - Get a specific user
 #[get("/users/{id}")]
-pub async fn get_user(path: web::Path<Uuid>, repo: web::Data<UserRepository>) -> impl Responder {
+pub async fn get_user(path: web::Path<Uuid>, repo: web::Data<CachedUserRepository>) -> impl Responder {
     let user_id = path.into_inner();
     
     match repo.get_by_id(&user_id).await {
@@ -46,7 +46,7 @@ pub async fn get_user(path: web::Path<Uuid>, repo: web::Data<UserRepository>) ->
 
 // POST /users - Create a new user
 #[post("/users")]
-pub async fn create_user(user_req: web::Json<CreateUserRequest>, repo: web::Data<UserRepository>) -> impl Responder {
+pub async fn create_user(user_req: web::Json<CreateUserRequest>, repo: web::Data<CachedUserRepository>) -> impl Responder {
     match repo.create(&user_req).await {
         Ok(user) => HttpResponse::Created().json(user),
         Err(e) => {
@@ -63,7 +63,7 @@ pub async fn create_user(user_req: web::Json<CreateUserRequest>, repo: web::Data
 pub async fn update_user(
     path: web::Path<Uuid>,
     user_req: web::Json<UpdateUserRequest>,
-    repo: web::Data<UserRepository>
+    repo: web::Data<CachedUserRepository>
 ) -> impl Responder {
     let user_id = path.into_inner();
     
@@ -83,7 +83,7 @@ pub async fn update_user(
 
 // DELETE /users/{id} - Delete a user
 #[delete("/users/{id}")]
-pub async fn delete_user(path: web::Path<Uuid>, repo: web::Data<UserRepository>) -> impl Responder {
+pub async fn delete_user(path: web::Path<Uuid>, repo: web::Data<CachedUserRepository>) -> impl Responder {
     let user_id = path.into_inner();
     
     match repo.delete(&user_id).await {

@@ -6,7 +6,7 @@ mod routes;
 use std::process;
 use actix_web::{web, App, HttpServer, middleware::Logger};
 use config::AppConfig;
-use repositories::user_repo::UserRepository;
+use repositories::user_repo::CachedUserRepository;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -24,7 +24,7 @@ async fn main() -> std::io::Result<()> {
     };
     
     // Create user repository
-    let user_repository = UserRepository::new(config.pg_pool.clone());
+    let user_repository = CachedUserRepository::new(config.pg_pool.clone());
     
     // Initialize database schema
     match user_repository.init_db().await {

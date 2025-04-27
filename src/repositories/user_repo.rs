@@ -1,11 +1,20 @@
 use deadpool_postgres::Pool;
 use uuid::Uuid;
 use std::error::Error as StdError;
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
 use crate::models::user::{User, CreateUserRequest, UpdateUserRequest};
 
+// Original repository for database operations
 pub struct UserRepository {
     pool: Pool,
+}
+
+// New cached repository that wraps the original
+pub struct CachedUserRepository {
+    repo: UserRepository,
+    cache: Arc<RwLock<HashMap<Uuid, User>>>,
 }
 
 impl UserRepository {
@@ -240,6 +249,131 @@ impl UserRepository {
             )
             .await?;
             
+        Ok(())
+    }
+}
+
+impl CachedUserRepository {
+    pub fn new(pool: Pool) -> Self {
+        Self {
+            repo: UserRepository::new(pool),
+            cache: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    pub async fn init_db(&self) -> Result<(), Box<dyn StdError>> {
+        self.repo.init_db().await
+    }
+
+    pub async fn get_all(&self) -> Result<Vec<User>, Box<dyn StdError>> {
+        // Read from DB first
+        let users = self.repo.get_all().await?;
+        
+        // Update cache with all users
+        {
+            let mut cache = self.cache.write().unwrap();
+            for user in &users {
+                cache.insert(user.id, user.clone());
+            }
+        }
+        
+        Ok(users)
+    }
+
+    pub async fn get_by_id(&self, id: &Uuid) -> Result<Option<User>, Box<dyn StdError>> {
+        // Check cache first
+        {
+            let cache = self.cache.read().unwrap();
+            if let Some(user) = cache.get(id) {
+                log::debug!("Cache hit for user with id: {}", id);
+                return Ok(Some(user.clone()));
+            }
+        }
+        
+        // If not in cache, get from DB
+        log::debug!("Cache miss for user with id: {}", id);
+        let user_option = self.repo.get_by_id(id).await?;
+        
+        // If found, update cache
+        if let Some(ref user) = user_option {
+            let mut cache = self.cache.write().unwrap();
+            cache.insert(user.id, user.clone());
+        }
+        
+        Ok(user_option)
+    }
+
+    pub async fn create(&self, user_req: &CreateUserRequest) -> Result<User, Box<dyn StdError>> {
+        // Create in DB first
+        let user = self.repo.create(user_req).await?;
+        
+        // Then update cache
+        {
+            let mut cache = self.cache.write().unwrap();
+            cache.insert(user.id, user.clone());
+        }
+        
+        Ok(user)
+    }
+
+    pub async fn update(&self, id: &Uuid, user_req: &UpdateUserRequest) -> Result<Option<User>, Box<dyn StdError>> {
+        // Update in DB first
+        let updated_user = self.repo.update(id, user_req).await?;
+        
+        // Then update cache if user exists
+        if let Some(ref user) = updated_user {
+            let mut cache = self.cache.write().unwrap();
+            cache.insert(user.id, user.clone());
+        } else {
+            // If user doesn't exist anymore, remove from cache
+            let mut cache = self.cache.write().unwrap();
+            cache.remove(id);
+        }
+        
+        Ok(updated_user)
+    }
+
+    pub async fn delete(&self, id: &Uuid) -> Result<bool, Box<dyn StdError>> {
+        // Delete from DB first
+        let deleted = self.repo.delete(id).await?;
+        
+        // If deleted, remove from cache
+        if deleted {
+            let mut cache = self.cache.write().unwrap();
+            cache.remove(id);
+        }
+        
+        Ok(deleted)
+    }
+
+    pub async fn seed_sample_data(&self) -> Result<(), Box<dyn StdError>> {
+        // Seed data in DB
+        let result = self.repo.seed_sample_data().await?;
+        
+        // Then refresh cache with all users
+        let _ = self.get_all().await?;
+        
+        Ok(result)
+    }
+    
+    // Method to manually invalidate cache for testing or administrative purposes
+    pub fn invalidate_cache(&self) {
+        let mut cache = self.cache.write().unwrap();
+        cache.clear();
+        log::info!("User cache invalidated");
+    }
+    
+    // Method to refresh single cache entry
+    pub async fn refresh_cache_entry(&self, id: &Uuid) -> Result<(), Box<dyn StdError>> {
+        let user_option = self.repo.get_by_id(id).await?;
+        
+        let mut cache = self.cache.write().unwrap();
+        if let Some(user) = user_option {
+            cache.insert(user.id, user.clone());
+        } else {
+            cache.remove(id);
+        }
+        
         Ok(())
     }
 }
